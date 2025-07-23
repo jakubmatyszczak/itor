@@ -149,7 +149,7 @@ fontInit :: ()
     }
 
     pixel_height := 24;
-    font = Simp.get_font_at_size("./", "FiraCode-Regular.ttf", pixel_height);
+    font = Simp.get_font_at_size("./res", "FiraCode-Regular.ttf", pixel_height);
     assert(font != null);
 }
 
