@@ -68,6 +68,7 @@ main :: ()
               //   for event.files array_add(*dropped_files, copy_string(it));
         }
         if cursor.y < 0 cursor.y = 0;
+        if cursor.y > xx lines.count cursor.y = xx lines.count;
         if cursor.x < 0 cursor.x = 0;
     }
 }
@@ -76,6 +77,7 @@ current_theme: s32 = xx Default_Themes.Default;
 my_theme: Overall_Theme;  // This gets filled out by calling the Theme_Proc for current_theme.
 lines : [..]string;
 cursor : Vector2;
+firstLineOnScreen : s64 = 0;
 
 draw_rect :: (pos : Vector2, size : Vector2, color : Vector4)
 {
@@ -96,8 +98,6 @@ drawFrame :: ()
     button_theme := my_theme.button_theme;
     button_theme.font = font;
     button_theme.enable_variable_frame_thickness = true;
-    // 'k' is some resolution-adjusting unit of distance. Right now it is
-    // 1/10 of the screen height, so, 108 pixels at 1920x1080.
 
     bg := Vector4.{0.019, 0.207, 0.161, 1.}; 
     fg := brighten(bg, 0.25);
@@ -108,8 +108,30 @@ drawFrame :: ()
     charSize := Vector2.{xx Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), xx font.default_line_spacing};
     nCharactersLineNumber : s64 = xx log(cast(float)lines.count);
     textOriginX := origin.x + nCharactersLineNumber * charSize.x + 12; //accounts for line number
+
+    nLinesOnScreen : s64 = xx (600. / charSize.y) - 1;
+    nLinesMargin : s64 = 5;
+    cursorLocalY : s64 = xx cursor.y - firstLineOnScreen;
+
+    if cursorLocalY < 0
+        firstLineOnScreen += cursorLocalY;
+    if cursorLocalY > nLinesOnScreen - nLinesMargin
+    {
+        diff := cursorLocalY - (nLinesOnScreen - nLinesMargin);
+        firstLineOnScreen += diff;
+    }
+
+    if firstLineOnScreen < 0
+        firstLineOnScreen = 0;
+    if xx cursor.y > lines.count-1
+        cursor.y = xx(lines.count-1);
+    cursorLocalY = xx cursor.y - firstLineOnScreen;
+
     for lines {
-        lineOriginY := origin.y + it_index * -charSize.y;
+        if it_index < firstLineOnScreen || it_index > firstLineOnScreen + nLinesOnScreen
+            continue;
+
+        lineOriginY := origin.y + (it_index - firstLineOnScreen) * -charSize.y;
 
         lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=nCharactersLineNumber, padding=#char" "));
         trimmed := trim_right(it, " \t\r\n");
@@ -117,7 +139,7 @@ drawFrame :: ()
         Simp.draw_text(font, xx textOriginX, xx lineOriginY, trimmed, fg);
     }
     
-    cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursor.y * charSize.y};
+    cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursorLocalY * charSize.y};
     lineHighlighColor := brighten(fg, 0.1);
     lineHighlighColor.w = 0.1;
     cursorColor := brighten(fg, 0.5);

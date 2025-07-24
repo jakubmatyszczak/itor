@@ -39,20 +39,23 @@
     compiler_begin_intercept(w);
     
     add_build_file("main.jai", w);
-    success := false;
+    success := true;
     while true 
     {
         message := compiler_wait_for_message();
         if !message break;
         if message.kind == 
         {
+            case .ERROR;
+                success = false;
             case .COMPLETE;
-                success = true;
                 break;
         }
     }
     compiler_end_intercept(w);
 
+    if !success
+        return;
     run_command("cp", "-r", "res", "build/", working_directory=#filepath);
     run_command("build/itor", join(#filepath, "build"));
 }
