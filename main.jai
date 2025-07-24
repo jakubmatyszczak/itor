@@ -76,12 +76,12 @@ main :: ()
 current_theme: s32 = xx Default_Themes.Default;
 my_theme: Overall_Theme;  // This gets filled out by calling the Theme_Proc for current_theme.
 lines : [..]string;
-cursor : Vector2;
+cursor : Vector2i;
 firstLineOnScreen : s64 = 0;
 
-draw_rect :: (pos : Vector2, size : Vector2, color : Vector4)
+draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
-    Simp.immediate_quad(pos.x, pos.y, pos.x + size.x, pos.y + size.y, color);
+    Simp.immediate_quad(cast(float)pos.x, cast(float)pos.y, cast(float)(pos.x + size.x), cast(float)(pos.y + size.y), color);
 }
 drawFrame :: ()
 {
@@ -104,14 +104,14 @@ drawFrame :: ()
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
     rect := get_rect(0, 0, 800, 600);
     
-    origin := Vector2.{50, 600-50};
-    charSize := Vector2.{xx Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), xx font.default_line_spacing};
+    origin := Vector2i.{50, 600-50};
+    charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
     nCharactersLineNumber : s64 = xx log(cast(float)lines.count);
     textOriginX := origin.x + nCharactersLineNumber * charSize.x + 12; //accounts for line number
 
     nLinesOnScreen : s64 = xx (600. / charSize.y) - 1;
     nLinesMargin : s64 = 5;
-    cursorLocalY : s64 = xx cursor.y - firstLineOnScreen;
+    cursorLocalY : s64 = cursor.y - firstLineOnScreen;
 
     if cursorLocalY < 0
         firstLineOnScreen += cursorLocalY;
@@ -124,8 +124,8 @@ drawFrame :: ()
     if firstLineOnScreen < 0
         firstLineOnScreen = 0;
     if xx cursor.y > lines.count-1
-        cursor.y = xx(lines.count-1);
-    cursorLocalY = xx cursor.y - firstLineOnScreen;
+        cursor.y = (lines.count-1);
+    cursorLocalY = cursor.y - firstLineOnScreen;
 
     for lines {
         if it_index < firstLineOnScreen || it_index > firstLineOnScreen + nLinesOnScreen
@@ -146,12 +146,12 @@ drawFrame :: ()
     cursorColor.w = 0.1;
 
     Simp.set_shader_for_color(true);
-    draw_rect(origin + .{0., charSize.y}, .{textOriginX - origin.x, -600.}, lineHighlighColor);
-    draw_rect(.{origin.x - 2, cursor_pos.y - 2}, .{800., charSize.y}, lineHighlighColor);
+    draw_rect(origin + .{0, charSize.y}, .{textOriginX - origin.x, -600}, lineHighlighColor);
+    draw_rect(.{origin.x - 2, cursor_pos.y - 2}, .{800, charSize.y}, lineHighlighColor);
     draw_rect(cursor_pos - .{2, 2}, charSize, cursorColor);
     
 
-    draw_rect(.{0., 0.}, .{800., charSize.y}, fg);
+    draw_rect(.{0, 0}, .{800, charSize.y}, fg);
     coordsString := sprint("C: % | R: %", cursor.x, cursor.y);
     Simp.draw_text(font, 800 - Simp.prepare_text(font, coordsString) - 2, 2, coordsString, bg);
 
@@ -175,3 +175,32 @@ fontInit :: ()
     assert(font != null);
 }
 
+Vector2i :: struct
+{
+    x : s64;
+    y : s64;
+}
+operator + :: (a: Vector2i, b: Vector2i) -> Vector2i
+{
+    return .{a.x + b.x, a.y + b.y};
+}
+operator - :: (a: Vector2i, b: Vector2i) -> Vector2i
+{
+    return .{a.x - b.x, a.y - b.y};
+}
+operator * :: (a: Vector2i, b: Vector2i) -> Vector2i
+{
+    return .{a.x * b.x, a.y * b.y};
+}
+operator * :: (a: Vector2i, b: float) -> Vector2i #symmetric
+{
+    return .{cast(s64)(a.x * b), cast(s64)(a.y * b)};
+}
+operator / :: (a: Vector2i, b: Vector2i) -> Vector2i
+{
+    return .{a.x / b.x, a.y / b.y};
+}
+operator / :: (a: Vector2i, b: float) -> Vector2i #symmetric
+{
+    return .{cast(s64)(a.x / b), cast(s64)(a.y / b)};
+}
