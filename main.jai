@@ -19,14 +19,22 @@ main :: ()
 
     fontInit();
     ui_init();
+    array_add(*lines, sprint("Sraka od dupaka"));
+    array_add(*lines, sprint("Sraka od dupaka"));
+    array_add(*lines, sprint("Sraka od dupaka dluga linia"));
+    array_add(*lines, sprint("Sraka od dupaka"));
+    array_add(*lines, sprint("Sraka od dupaka"));
+    array_add(*lines, sprint("Sraka od dupaka dluga linia"));
     for 0..25
-        array_add(*lines, sprint("Sraka od dupaka % \t kuj.śćęrwó", it));
+        array_add(*lines, sprint("Sraka od dupaka %", it));
 
     last_time := seconds_since_init();
     quit := false;
     while !quit 
     {
         drawFrame();
+
+        dCursor = .{};
 
         dt := cast(float)(current_time - last_time);
         last_time = current_time;
@@ -52,13 +60,13 @@ main :: ()
                             case .ESCAPE;
                                 active_widget_deactivate_all();
                             case #char "K";
-                                cursor.y -= 1;
+                                dCursor.y = -1;
                             case #char "J";
-                                cursor.y += 1;
+                                dCursor.y = 1;
                             case #char "H";
-                                cursor.x -= 1;
+                                dCursor.x = -1;
                             case #char "L";
-                                cursor.x += 1;
+                                dCursor.x = 1;
                         }
             }
                         
@@ -67,17 +75,17 @@ main :: ()
               //   array_reset(*dropped_files);
               //   for event.files array_add(*dropped_files, copy_string(it));
         }
-        if cursor.y < 0 cursor.y = 0;
-        if cursor.y > xx lines.count cursor.y = xx lines.count;
-        if cursor.x < 0 cursor.x = 0;
     }
 }
 
 current_theme: s32 = xx Default_Themes.Default;
 my_theme: Overall_Theme;  // This gets filled out by calling the Theme_Proc for current_theme.
 lines : [..]string;
+
+dCursor : Vector2i;
 cursor : Vector2i;
-firstLineOnScreen : s64 = 0;
+cursorWannaBeX : s64;
+screenOrigin : Vector2i = .{0, 0};
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
@@ -102,36 +110,59 @@ drawFrame :: ()
     bg := Vector4.{0.019, 0.207, 0.161, 1.}; 
     fg := brighten(bg, 0.25);
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
-    rect := get_rect(0, 0, 800, 600);
     
     origin := Vector2i.{50, 600-50};
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
     nCharactersLineNumber : s64 = xx log(cast(float)lines.count);
     textOriginX := origin.x + nCharactersLineNumber * charSize.x + 12; //accounts for line number
 
+    // setup
     nLinesOnScreen : s64 = xx (600. / charSize.y) - 1;
     nLinesMargin : s64 = 5;
-    cursorLocalY : s64 = cursor.y - firstLineOnScreen;
+    cursorScreen : Vector2i = cursor - screenOrigin;
+    cursor += dCursor;
+    
+    // first deal with cursor.y
+    if cursor.y < 0 cursor.y = 0;
+    if cursor.y > xx lines.count cursor.y = xx lines.count;
 
-    if cursorLocalY < 0
-        firstLineOnScreen += cursorLocalY;
-    if cursorLocalY > nLinesOnScreen - nLinesMargin
+    if cursorScreen.y < 0
+        screenOrigin.y += cursorScreen.y;
+    if cursorScreen.y > nLinesOnScreen - nLinesMargin
     {
-        diff := cursorLocalY - (nLinesOnScreen - nLinesMargin);
-        firstLineOnScreen += diff;
+        diff := cursorScreen.y - (nLinesOnScreen - nLinesMargin);
+        screenOrigin.y += diff;
     }
 
-    if firstLineOnScreen < 0
-        firstLineOnScreen = 0;
-    if xx cursor.y > lines.count-1
-        cursor.y = (lines.count-1);
-    cursorLocalY = cursor.y - firstLineOnScreen;
+    if screenOrigin.y < 0
+        screenOrigin.y = 0;
+    if cursor.y >= lines.count-1
+        cursor.y = lines.count-1;
+    cursorScreen.y = cursor.y - screenOrigin.y;
 
-    for lines {
-        if it_index < firstLineOnScreen || it_index > firstLineOnScreen + nLinesOnScreen
+    // now do X
+    if cursor.x < 0
+        cursor.x = 0;
+    if cursor.x > lines[cursor.y].count-1
+        cursor.x = lines[cursor.y].count-1;
+    
+    if dCursor.x != 0
+        cursorWannaBeX = cursor.x;
+    if cursor.x < cursorWannaBeX
+    {
+        if cursorWannaBeX < lines[cursor.y].count
+            cursor.x = cursorWannaBeX;
+        else
+            cursor.x = lines[cursor.y].count - 1;
+    }
+
+
+    for lines
+    {
+        if it_index < screenOrigin.y || it_index > screenOrigin.y + nLinesOnScreen
             continue;
 
-        lineOriginY := origin.y + (it_index - firstLineOnScreen) * -charSize.y;
+        lineOriginY := origin.y + (it_index - screenOrigin.y) * -charSize.y;
 
         lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=nCharactersLineNumber, padding=#char" "));
         trimmed := trim_right(it, " \t\r\n");
@@ -139,7 +170,7 @@ drawFrame :: ()
         Simp.draw_text(font, xx textOriginX, xx lineOriginY, trimmed, fg);
     }
     
-    cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursorLocalY * charSize.y};
+    cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursorScreen.y * charSize.y};
     lineHighlighColor := brighten(fg, 0.1);
     lineHighlighColor.w = 0.1;
     cursorColor := brighten(fg, 0.5);
@@ -203,4 +234,8 @@ operator / :: (a: Vector2i, b: Vector2i) -> Vector2i
 operator / :: (a: Vector2i, b: float) -> Vector2i #symmetric
 {
     return .{cast(s64)(a.x / b), cast(s64)(a.y / b)};
+}
+operator != :: (a: Vector2i, b: s64) -> bool #symmetric
+{
+    return (a.x != b || a.y != b);
 }
