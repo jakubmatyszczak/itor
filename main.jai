@@ -21,7 +21,7 @@ main :: ()
     ui_init();
     array_add(*lines, sprint("Sraka od dupaka"));
     array_add(*lines, sprint("Sraka od dupaka"));
-    array_add(*lines, sprint("Sraka od dupaka dluga linia"));
+    array_add(*lines, sprint("Sraka od dupaka dluga linia, Sraka od dupaka dluga linia, Sraka od dupaka dluga linia"));
     array_add(*lines, sprint("Sraka od dupaka"));
     array_add(*lines, sprint("Sraka od dupaka"));
     array_add(*lines, sprint("Sraka od dupaka dluga linia"));
@@ -107,16 +107,20 @@ drawFrame :: ()
     button_theme.font = font;
     button_theme.enable_variable_frame_thickness = true;
 
+    red := Vector4.{1.0, 0, 0, 1};
     bg := Vector4.{0.019, 0.207, 0.161, 1.}; 
     fg := brighten(bg, 0.25);
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
     
-    origin := Vector2i.{50, 600-50};
+    origin := Vector2i.{0, 600-50};
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
     nCharactersLineNumber : s64 = xx log(cast(float)lines.count);
-    textOriginX := origin.x + nCharactersLineNumber * charSize.x + 12; //accounts for line number
+    lineNumberWidthPx : s64 = (nCharactersLineNumber + 1) * charSize.x;
+    textOriginX := origin.x + lineNumberWidthPx; //accounts for line number
 
     // setup
+    nCharactersOnScreen : s64 = xx (800. / charSize.x) - nCharactersLineNumber - cast(s64)(cast(float)origin.x / charSize.x);
+    nCharactersMargin : s64 = 5;
     nLinesOnScreen : s64 = xx (600. / charSize.y) - 1;
     nLinesMargin : s64 = 5;
     cursorScreen : Vector2i = cursor - screenOrigin;
@@ -156,18 +160,39 @@ drawFrame :: ()
             cursor.x = lines[cursor.y].count - 1;
     }
 
+    // goint to the right
+    if cursorScreen.x > nCharactersOnScreen - nCharactersMargin
+    {
+        diff := cursorScreen.x - (nCharactersOnScreen - nCharactersMargin);
+        screenOrigin.x += diff;
+    }
+    //goint to the left
+    if cursorScreen.x < nCharactersMargin 
+        screenOrigin.x += (cursorScreen.x - nCharactersMargin);
 
+    if screenOrigin.x < 0
+        screenOrigin.x = 0;
+    if cursorScreen.x < 0
+        cursorScreen.x = 0;
+        
+    textOriginX -= screenOrigin.x * charSize.x;
     for lines
     {
         if it_index < screenOrigin.y || it_index > screenOrigin.y + nLinesOnScreen
             continue;
-
         lineOriginY := origin.y + (it_index - screenOrigin.y) * -charSize.y;
-
-        lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=nCharactersLineNumber, padding=#char" "));
         trimmed := trim_right(it, " \t\r\n");
+        Simp.draw_text(font, xx textOriginX, xx lineOriginY, trimmed, fg); // should use slice and only write part of string that is in view
+    }
+    Simp.set_shader_for_color(true);
+    draw_rect(origin + .{0, charSize.y}, .{lineNumberWidthPx, -600}, bg); // overwrite existing text with lineNumber Rect
+    for lines
+    {
+        if it_index < screenOrigin.y || it_index > screenOrigin.y + nLinesOnScreen
+            continue;
+        lineOriginY := origin.y + (it_index - screenOrigin.y) * -charSize.y;
+        lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=nCharactersLineNumber, padding=#char" "));
         Simp.draw_text(font, xx origin.x, xx lineOriginY, lineNumber, fg);
-        Simp.draw_text(font, xx textOriginX, xx lineOriginY, trimmed, fg);
     }
     
     cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursorScreen.y * charSize.y};
@@ -177,11 +202,11 @@ drawFrame :: ()
     cursorColor.w = 0.1;
 
     Simp.set_shader_for_color(true);
-    draw_rect(origin + .{0, charSize.y}, .{textOriginX - origin.x, -600}, lineHighlighColor);
-    draw_rect(.{origin.x - 2, cursor_pos.y - 2}, .{800, charSize.y}, lineHighlighColor);
-    draw_rect(cursor_pos - .{2, 2}, charSize, cursorColor);
-    
+    draw_rect(origin + .{0, charSize.y}, .{lineNumberWidthPx, -600}, lineHighlighColor); //line number color
+    draw_rect(.{origin.x - 2, cursor_pos.y - 2}, .{800, charSize.y}, lineHighlighColor); //line highlight
+    draw_rect(cursor_pos - .{2, 2}, charSize, cursorColor); //cursor highlight
 
+    //bottom bar
     draw_rect(.{0, 0}, .{800, charSize.y}, fg);
     coordsString := sprint("C: % | R: %", cursor.x, cursor.y);
     Simp.draw_text(font, 800 - Simp.prepare_text(font, coordsString) - 2, 2, coordsString, bg);
