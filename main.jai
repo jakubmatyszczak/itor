@@ -36,6 +36,7 @@ main :: ()
     {
         drawFrame();
 
+        input = 0;
         dCursor = .{};
 
         dt := cast(float)(current_time - last_time);
@@ -57,7 +58,6 @@ main :: ()
 
             getrect_handle_event(event);
 
-
             if event.type == 
             {
                 case .KEYBOARD;
@@ -76,6 +76,8 @@ main :: ()
                                 dCursor.x = 1;
                             case #char "Q";
                                 experiment = !experiment;
+                            case;
+                                input = cast(u32)event.key_code;
                         }
             }
                         
@@ -97,6 +99,7 @@ cursorWannaBeX : s64;
 screenOrigin : Vector2i = .{0, 0};
 experiment := false;
 b1 : Buffer;
+input : u32;
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
@@ -123,7 +126,7 @@ drawFrame :: ()
     fg := brighten(bg, 0.25);
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
 
-    computeBufferView(*b1, dCursor);
+    computeBufferView(*b1, dCursor, input);
 
     Simp.swap_buffers(window);
 }
@@ -158,7 +161,7 @@ Buffer :: struct
     
     lines : []string;
 }
-computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
+computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u32)
 {
     bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
     fg : Vector4 = brighten(bg, 0.25);
@@ -173,7 +176,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
         cursorWannaBeX = cursor.x;
     cursor += dCursor;
     cursor.y = clamp(cursor.y, 0, lines.count - 1);
-    line := lines[cursor.y];
+    line : *string  = *lines.data[cursor.y];
     
     if dCursor.x != 0
         cursorWannaBeX = cursor.x;
@@ -198,6 +201,24 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
     viewOriginCh.x = clamp(viewOriginCh.x, 0, lines[cursor.y].count);
 
     cursorLocalCh = cursor - viewOriginCh;
+
+    // edit
+    if input
+    {
+        character_to_string :: (x: u32) -> string {
+            s: string;
+            s.count = 1;
+            s.data = alloc(1);
+            s[0] = cast(u8)x;
+
+            return s;
+        }
+        pre := slice(<<line, 0, cursor.x);
+        mid : string = character_to_string(input);
+        post := slice(<<line, cursor.x, line.count);
+        <<line = join(pre, mid, post);
+        cursor.x+=1;
+    }
 
     // draw text
     for lines
