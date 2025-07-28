@@ -30,6 +30,8 @@ main :: ()
 
     last_time := seconds_since_init();
     quit := false;
+    charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
+    b1 = .{ origin = .{0, 0}, size = .{800, 600}, charSize = charSize, lines = lines};
     while !quit 
     {
         drawFrame();
@@ -67,6 +69,8 @@ main :: ()
                                 dCursor.x = -1;
                             case #char "L";
                                 dCursor.x = 1;
+                            case #char "Q";
+                                experiment = !experiment;
                         }
             }
                         
@@ -86,6 +90,8 @@ dCursor : Vector2i;
 cursor : Vector2i;
 cursorWannaBeX : s64;
 screenOrigin : Vector2i = .{0, 0};
+experiment := false;
+b1 : Buffer;
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
@@ -111,105 +117,8 @@ drawFrame :: ()
     bg := Vector4.{0.019, 0.207, 0.161, 1.}; 
     fg := brighten(bg, 0.25);
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
-    
-    origin := Vector2i.{0, 600-50};
-    charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
-    nCharactersLineNumber : s64 = xx log(cast(float)lines.count);
-    lineNumberWidthPx : s64 = (nCharactersLineNumber + 1) * charSize.x;
-    textOriginX := origin.x + lineNumberWidthPx; //accounts for line number
 
-    // setup
-    nCharactersOnScreen : s64 = xx (800. / charSize.x) - nCharactersLineNumber - cast(s64)(cast(float)origin.x / charSize.x);
-    nCharactersMargin : s64 = 5;
-    nLinesOnScreen : s64 = xx (600. / charSize.y) - 1;
-    nLinesMargin : s64 = 5;
-    cursorScreen : Vector2i = cursor - screenOrigin;
-    cursor += dCursor;
-    
-    // first deal with cursor.y
-    if cursor.y < 0 cursor.y = 0;
-    if cursor.y > xx lines.count cursor.y = xx lines.count;
-
-    if cursorScreen.y < 0
-        screenOrigin.y += cursorScreen.y;
-    if cursorScreen.y > nLinesOnScreen - nLinesMargin
-    {
-        diff := cursorScreen.y - (nLinesOnScreen - nLinesMargin);
-        screenOrigin.y += diff;
-    }
-
-    if screenOrigin.y < 0
-        screenOrigin.y = 0;
-    if cursor.y >= lines.count-1
-        cursor.y = lines.count-1;
-    cursorScreen.y = cursor.y - screenOrigin.y;
-
-    // now do X
-    if cursor.x < 0
-        cursor.x = 0;
-    if cursor.x > lines[cursor.y].count-1
-        cursor.x = lines[cursor.y].count-1;
-    
-    if dCursor.x != 0
-        cursorWannaBeX = cursor.x;
-    if cursor.x < cursorWannaBeX
-    {
-        if cursorWannaBeX < lines[cursor.y].count
-            cursor.x = cursorWannaBeX;
-        else
-            cursor.x = lines[cursor.y].count - 1;
-    }
-
-    // goint to the right
-    if cursorScreen.x > nCharactersOnScreen - nCharactersMargin
-    {
-        diff := cursorScreen.x - (nCharactersOnScreen - nCharactersMargin);
-        screenOrigin.x += diff;
-    }
-    //goint to the left
-    if cursorScreen.x < nCharactersMargin 
-        screenOrigin.x += (cursorScreen.x - nCharactersMargin);
-
-    if screenOrigin.x < 0
-        screenOrigin.x = 0;
-    if cursorScreen.x < 0
-        cursorScreen.x = 0;
-        
-    textOriginX -= screenOrigin.x * charSize.x;
-    for lines
-    {
-        if it_index < screenOrigin.y || it_index > screenOrigin.y + nLinesOnScreen
-            continue;
-        lineOriginY := origin.y + (it_index - screenOrigin.y) * -charSize.y;
-        trimmed := trim_right(it, " \t\r\n");
-        Simp.draw_text(font, xx textOriginX, xx lineOriginY, trimmed, fg); // should use slice and only write part of string that is in view
-    }
-    Simp.set_shader_for_color(true);
-    draw_rect(origin + .{0, charSize.y}, .{lineNumberWidthPx, -600}, bg); // overwrite existing text with lineNumber Rect
-    for lines
-    {
-        if it_index < screenOrigin.y || it_index > screenOrigin.y + nLinesOnScreen
-            continue;
-        lineOriginY := origin.y + (it_index - screenOrigin.y) * -charSize.y;
-        lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=nCharactersLineNumber, padding=#char" "));
-        Simp.draw_text(font, xx origin.x, xx lineOriginY, lineNumber, fg);
-    }
-    
-    cursor_pos := .{textOriginX, origin.y} + .{cursor.x * charSize.x, -cursorScreen.y * charSize.y};
-    lineHighlighColor := brighten(fg, 0.1);
-    lineHighlighColor.w = 0.1;
-    cursorColor := brighten(fg, 0.5);
-    cursorColor.w = 0.1;
-
-    Simp.set_shader_for_color(true);
-    draw_rect(origin + .{0, charSize.y}, .{lineNumberWidthPx, -600}, lineHighlighColor); //line number color
-    draw_rect(.{origin.x - 2, cursor_pos.y - 2}, .{800, charSize.y}, lineHighlighColor); //line highlight
-    draw_rect(cursor_pos - .{2, 2}, charSize, cursorColor); //cursor highlight
-
-    //bottom bar
-    draw_rect(.{0, 0}, .{800, charSize.y}, fg);
-    coordsString := sprint("C: % | R: %", cursor.x, cursor.y);
-    Simp.draw_text(font, 800 - Simp.prepare_text(font, coordsString) - 2, 2, coordsString, bg);
+    computeBufferView(*b1, dCursor);
 
     Simp.swap_buffers(window);
 }
@@ -230,6 +139,96 @@ fontInit :: ()
     font = Simp.get_font_at_size("./res", "FiraCode-Regular.ttf", pixel_height);
     assert(font != null);
 }
+Buffer :: struct
+{
+    origin : Vector2i;
+    size : Vector2i;
+    
+    charSize : Vector2i;
+    viewMargin :: 5;
+
+    viewOriginCh : Vector2i;
+    cursor : Vector2i;
+    cursorWannaBeX : s64;
+    
+    lines : []string;
+}
+computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
+{
+    bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
+    fg : Vector4 = brighten(bg, 0.25);
+    hl : Vector4 = brighten(fg, 0.25);
+
+    viewSizeCh : Vector2i = size / charSize - .{0, 1}; // padding for status bar on bottom
+    lineNumberWidthCh : s64 = xx log(cast(float)lines.count);
+    lineNumberWidthPx : s64 = lineNumberWidthCh * charSize.x;
+    textOrigin : Vector2i = origin + .{0, size.y} + .{ lineNumberWidthPx,  -charSize.y};
+
+    if dCursor.y != 0 && cursorWannaBeX < cursor.x
+        cursorWannaBeX = cursor.x;
+    cursor += dCursor;
+    cursor.y = clamp(cursor.y, 0, lines.count - 1);
+    line := lines[cursor.y];
+    
+    if dCursor.x != 0
+        cursorWannaBeX = cursor.x;
+    if cursorWannaBeX > cursor.x
+        cursor.x = cursorWannaBeX;
+    cursor.x = clamp(cursor.x, 0, line.count - 1);
+
+    cursorLocalCh : Vector2i = cursor - viewOriginCh;
+    // compute screen movement Y
+    if cursorLocalCh.y < viewMargin
+        viewOriginCh.y -= viewMargin - cursorLocalCh.y;
+    if cursorLocalCh.y > viewSizeCh.y - viewMargin
+        viewOriginCh.y += cursorLocalCh.y - (viewSizeCh.y - viewMargin);
+
+    // compute screen movement X
+    if cursorLocalCh.x < viewMargin
+        viewOriginCh.x -= viewMargin - cursorLocalCh.x;
+    if cursorLocalCh.x > viewSizeCh.x - viewMargin
+        viewOriginCh.x += cursorLocalCh.x - (viewSizeCh.x - viewMargin);
+    
+    viewOriginCh.y = clamp(viewOriginCh.y, 0, lines.count);
+    viewOriginCh.x = clamp(viewOriginCh.x, 0, lines[cursor.y].count);
+
+    cursorLocalCh = cursor - viewOriginCh;
+
+    // draw text
+    for lines
+    {
+        if it_index < viewOriginCh.y || it_index > viewOriginCh.y + viewSizeCh.y
+            continue;
+        lineYCh := it_index - viewOriginCh.y;
+        lineOrigin := textOrigin - .{viewOriginCh.x * charSize.x, lineYCh * charSize.y};
+        Simp.draw_text(font, lineOrigin.x, lineOrigin.y, it, fg); // should use slice and only write part of string that is in view
+    }
+
+    // draw line numbers
+    Simp.set_shader_for_color(true);
+    draw_rect(origin, .{lineNumberWidthPx, size.y}, fg);
+    for lines
+    {
+        lineOrigin := textOrigin - .{lineNumberWidthPx, it_index * charSize.y} ;
+        lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=lineNumberWidthCh, padding=#char" "));
+        Simp.draw_text(font, lineOrigin.x, lineOrigin.y, lineNumber, bg);
+    }
+
+    // draw cursor
+    Simp.set_shader_for_color(true);
+    cursorClr := fg * .{1, 1, 1, 0.2};
+    offset := -charSize / 10; 
+    draw_rect(textOrigin + offset + cursorLocalCh * .{charSize.x, -charSize.y}, charSize, cursorClr);
+
+    //line highlight
+    draw_rect(textOrigin + offset + .{0, cursorLocalCh.y * -charSize.y}, .{size.x, charSize.y}, cursorClr);
+
+    // draw bar
+    draw_rect(origin, .{size.x, charSize.y}, fg);
+    coordsString := sprint("C: % | R: %", cursor.x, cursor.y);
+    Simp.draw_text(font, origin.x , origin.y + 2, "EXPERIMENT", bg);
+    Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
+}
 
 Vector2i :: struct
 {
@@ -243,6 +242,15 @@ operator + :: (a: Vector2i, b: Vector2i) -> Vector2i
 operator - :: (a: Vector2i, b: Vector2i) -> Vector2i
 {
     return .{a.x - b.x, a.y - b.y};
+}
+operator - :: (a: Vector2i) -> Vector2i
+{
+    return .{-a.x, -a.y};
+}
+operator -= :: (a: *Vector2i, b: Vector2i)
+{
+    a.x -= b.x;
+    a.y -= b.y;
 }
 operator * :: (a: Vector2i, b: Vector2i) -> Vector2i
 {
@@ -263,4 +271,12 @@ operator / :: (a: Vector2i, b: float) -> Vector2i #symmetric
 operator != :: (a: Vector2i, b: s64) -> bool #symmetric
 {
     return (a.x != b || a.y != b);
+}
+clamp :: (val: s64, min: s64, max: s64) -> s64
+{
+    if val < min
+        return min;
+    if val > max
+        return max;
+    return val;
 }
