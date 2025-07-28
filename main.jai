@@ -12,6 +12,13 @@ window: Window_Type;
 
 current_time : float64;
 
+ItorMode :: enum
+{
+    NORMAL;
+    INSERT;
+}
+mode := ItorMode.NORMAL;
+
 main :: ()
 {
     window = create_window(800, 600, "itor");
@@ -62,6 +69,18 @@ main :: ()
             {
                 case .KEYBOARD;
                     if event.key_pressed
+                    {
+                        if mode == ItorMode.INSERT
+                        {
+                            c : u8 = xx event.key_code;
+                            if is_print(c) || is_space(c) || c == cast(u8)Input.Key_Code.ENTER
+                                input = xx event.key_code;
+                            if event.key_code == .ESCAPE
+                                mode = ItorMode.NORMAL;
+                            continue; 
+                        }
+                        if mode == ItorMode.NORMAL && event.key_code == #char "I"
+                            mode = ItorMode.INSERT;
                         if event.key_code ==
                         {
                             case .ESCAPE;
@@ -74,11 +93,8 @@ main :: ()
                                 dCursor.x = -1;
                             case #char "L";
                                 dCursor.x = 1;
-                            case #char "Q";
-                                experiment = !experiment;
-                            case;
-                                input = cast(u32)event.key_code;
                         }
+                    }
             }
                         
               // case .DRAG_AND_DROP_FILES;
@@ -252,8 +268,16 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u32)
 
     // draw bar
     draw_rect(origin, .{size.x, charSize.y}, fg);
-    coordsString := sprint("C: % | R: %", cursor.x, cursor.y);
-    Simp.draw_text(font, origin.x , origin.y + 2, "EXPERIMENT", bg);
+    coordsString := tprint("C: % | R: %", cursor.x, cursor.y);
+    modeString : string;
+    if mode == 
+    {
+        case ItorMode.NORMAL;
+            modeString = "NORMAL";
+        case ItorMode.INSERT;
+            modeString = "INSERT";
+    }
+    Simp.draw_text(font, origin.x , origin.y + 2, modeString, bg);
     Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
 }
 
