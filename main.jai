@@ -31,7 +31,7 @@ main :: ()
     last_time := seconds_since_init();
     quit := false;
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
-    b1 = .{ origin = .{0, 0}, size = .{800, 600}, charSize = charSize, lines = lines};
+    b1 = .{ origin = .{100, 100}, size = .{400, 400}, charSize = charSize, lines = lines};
     while !quit 
     {
         drawFrame();
@@ -159,9 +159,9 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
     fg : Vector4 = brighten(bg, 0.25);
     hl : Vector4 = brighten(fg, 0.25);
 
-    viewSizeCh : Vector2i = size / charSize - .{0, 1}; // padding for status bar on bottom
     lineNumberWidthCh : s64 = xx log(cast(float)lines.count);
     lineNumberWidthPx : s64 = lineNumberWidthCh * charSize.x;
+    viewSizeCh : Vector2i = size / charSize - .{lineNumberWidthCh, 1}; // padding for status bar on bottom
     textOrigin : Vector2i = origin + .{0, size.y} + .{ lineNumberWidthPx,  -charSize.y};
 
     if dCursor.y != 0 && cursorWannaBeX < cursor.x
@@ -200,8 +200,9 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
         if it_index < viewOriginCh.y || it_index > viewOriginCh.y + viewSizeCh.y
             continue;
         lineYCh := it_index - viewOriginCh.y;
-        lineOrigin := textOrigin - .{viewOriginCh.x * charSize.x, lineYCh * charSize.y};
-        Simp.draw_text(font, lineOrigin.x, lineOrigin.y, it, fg); // should use slice and only write part of string that is in view
+        lineOrigin := textOrigin - .{0, lineYCh * charSize.y};
+        trimmed := slice(it, viewOriginCh.x, viewSizeCh.x);
+        Simp.draw_text(font, lineOrigin.x, lineOrigin.y, trimmed, fg); // should use slice and only write part of string that is in view
     }
 
     // draw line numbers
@@ -221,7 +222,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i)
     draw_rect(textOrigin + offset + cursorLocalCh * .{charSize.x, -charSize.y}, charSize, cursorClr);
 
     //line highlight
-    draw_rect(textOrigin + offset + .{0, cursorLocalCh.y * -charSize.y}, .{size.x, charSize.y}, cursorClr);
+    draw_rect(textOrigin + offset + .{0, cursorLocalCh.y * -charSize.y}, .{size.x - lineNumberWidthPx, charSize.y}, cursorClr);
 
     // draw bar
     draw_rect(origin, .{size.x, charSize.y}, fg);
