@@ -31,7 +31,7 @@ main :: ()
     last_time := seconds_since_init();
     quit := false;
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
-    b1 = .{ origin = .{100, 100}, size = .{400, 400}, charSize = charSize, lines = lines};
+    b1 = .{ origin = .{0, 0}, size = .{400, 400}, charSize = charSize, lines = lines};
     while !quit 
     {
         drawFrame();
@@ -44,7 +44,11 @@ main :: ()
         Input.update_window_events();
 
         for Input.get_window_resizes()
+        {
             Simp.update_window(it.window);
+            b1.size.x = it.width - b1.origin.x;
+            b1.size.y = it.height - b1.origin.y;
+        }
 
         for event: Input.events_this_frame
         {
@@ -52,6 +56,7 @@ main :: ()
                 quit = true;
 
             getrect_handle_event(event);
+
 
             if event.type == 
             {
