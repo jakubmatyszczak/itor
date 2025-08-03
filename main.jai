@@ -316,16 +316,24 @@ processInputNormal :: (event : Input.Event)
         return;
     if kc == 
     {
+        case .ARROW_UP; #through;
         case #char "K";
             dCursor.y = -1;
+        case .ARROW_DOWN; #through;
         case #char "J";
             dCursor.y = 1;
+        case .ARROW_LEFT; #through;
         case #char "H";
             dCursor.x = -1;
+        case .ARROW_RIGHT; #through;
         case #char "L";
             dCursor.x = 1;
         case #char "I";
             newMode = ItorMode.INSERT;
+        case .PAGE_UP;
+            dCursor.y = -10;
+        case .PAGE_DOWN;
+            dCursor.y = +10;
     }
 }
 processInputInsert :: (event : Input.Event)
@@ -349,6 +357,18 @@ processInputInsert :: (event : Input.Event)
                 case .DELETE;
                     input = "\\7F";
                     inputSpecial = true;
+                case .ARROW_UP;
+                    dCursor.y = -1;
+                case .ARROW_DOWN;
+                    dCursor.y = +1;
+                case .ARROW_LEFT;
+                    dCursor.x = -1;
+                case .ARROW_RIGHT;
+                    dCursor.x = +1;
+                case .PAGE_UP;
+                    dCursor.y = -10;
+                case .PAGE_DOWN;
+                    dCursor.y = +10;
             }
         }
         case .TEXT_INPUT;
