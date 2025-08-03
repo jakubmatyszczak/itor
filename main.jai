@@ -74,8 +74,6 @@ my_theme: Overall_Theme;  // This gets filled out by calling the Theme_Proc for 
 lines : [..]string;
 
 dCursor : Vector2i;
-cursor : Vector2i;
-cursorWannaBeX : s64;
 screenOrigin : Vector2i = .{0, 0};
 experiment := false;
 b1 : Buffer;
@@ -159,7 +157,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
         cursorWannaBeX = cursor.x;
     if cursorWannaBeX > cursor.x
         cursor.x = cursorWannaBeX;
-    cursor.x = clamp(cursor.x, 0, line.count - 1);
+    cursor.x = clamp(cursor.x, 0, line.count);
 
     cursorLocalCh : Vector2i = cursor - viewOriginCh;
     // compute screen movement Y
@@ -182,10 +180,31 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     // edit
     if input != ""
     {
-        pre := slice(<<line, 0, cursor.x);
-        post := slice(<<line, cursor.x, line.count);
-        <<line = join(pre, input, post);
-        cursor.x+=1;
+        if line.count == 0 then
+        {
+            <<line = input;
+            cursor.x = 1;
+            cursorWannaBeX = cursor.x;
+        }
+        else
+        {
+            pre := slice(<<line, 0, cursor.x);
+            post := slice(<<line, cursor.x, line.count);
+            if input == "\n" //handle newline
+            {
+                <<line = pre;
+                array_insert_at(cast(*[..]string)*lines, post, cursor.y+1);
+                line = *lines[cursor.y+1];
+                cursor.y += 1;
+                cursor.x = 0;
+                cursorWannaBeX = 0;
+            }
+            else // any regular character
+            {
+                <<line = join(pre, input, post);
+                cursor.x += 1;
+            }
+        }
     }
 
     // draw text
@@ -275,8 +294,17 @@ processInputInsert :: (event : Input.Event)
     if event.type == 
     {
         case .KEYBOARD;
-            if event.key_pressed && event.key_code == .ESCAPE
-               newMode = ItorMode.NORMAL;
+        {
+            if !event.key_pressed
+                return;
+            if event.key_code == 
+            {
+                case .ESCAPE;
+                    newMode = ItorMode.NORMAL;
+                case .ENTER;
+                    input = "\n";
+            }
+        }
         case .TEXT_INPUT;
             input = character_utf32_to_utf8(event.utf32);
     }
