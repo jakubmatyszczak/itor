@@ -18,6 +18,7 @@ ItorMode :: enum
     INSERT;
 }
 mode := ItorMode.NORMAL;
+newMode := ItorMode.NORMAL;
 
 main :: ()
 {
@@ -43,7 +44,7 @@ main :: ()
     {
         drawFrame();
 
-        input = 0;
+        input = "";
         dCursor = .{};
 
         dt := cast(float)(current_time - last_time);
@@ -57,51 +58,14 @@ main :: ()
             b1.size.x = it.width - b1.origin.x;
             b1.size.y = it.height - b1.origin.y;
         }
+        processInput(Input.events_this_frame);
+                    
+                // case .MOUSE_WHEEL;
 
-        for event: Input.events_this_frame
-        {
-            if event.type == .QUIT
-                quit = true;
-
-            getrect_handle_event(event);
-
-            if event.type == 
-            {
-                case .KEYBOARD;
-                    if event.key_pressed
-                    {
-                        if mode == ItorMode.INSERT
-                        {
-                            c : u8 = xx event.key_code;
-                            if is_print(c) || is_space(c) || c == cast(u8)Input.Key_Code.ENTER
-                                input = xx event.key_code;
-                            if event.key_code == .ESCAPE
-                                mode = ItorMode.NORMAL;
-                            continue; 
-                        }
-                        if mode == ItorMode.NORMAL && event.key_code == #char "I"
-                            mode = ItorMode.INSERT;
-                        if event.key_code ==
-                        {
-                            case .ESCAPE;
-                                active_widget_deactivate_all();
-                            case #char "K";
-                                dCursor.y = -1;
-                            case #char "J";
-                                dCursor.y = 1;
-                            case #char "H";
-                                dCursor.x = -1;
-                            case #char "L";
-                                dCursor.x = 1;
-                        }
-                    }
-            }
-                        
               // case .DRAG_AND_DROP_FILES;
               //   for dropped_files free(it);
               //   array_reset(*dropped_files);
               //   for event.files array_add(*dropped_files, copy_string(it));
-        }
     }
 }
 
@@ -115,7 +79,7 @@ cursorWannaBeX : s64;
 screenOrigin : Vector2i = .{0, 0};
 experiment := false;
 b1 : Buffer;
-input : u32;
+input : string;
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
@@ -128,7 +92,6 @@ drawFrame :: ()
     set_default_theme(my_theme);  // Just in case we don't explicitly pass themes sometimes...!
 
     bg_col := my_theme.background_color;
-    Simp.clear_render_target(bg_col.x, bg_col.y, bg_col.z, 1);
 
     x, y, width, height := get_dimensions(window, true);
     ui_per_frame_update(window, width, height, current_time);
@@ -137,9 +100,7 @@ drawFrame :: ()
     button_theme.font = font;
     button_theme.enable_variable_frame_thickness = true;
 
-    red := Vector4.{1.0, 0, 0, 1};
-    bg := Vector4.{0.019, 0.207, 0.161, 1.}; 
-    fg := brighten(bg, 0.25);
+    bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
     Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
 
     computeBufferView(*b1, dCursor, input);
@@ -177,7 +138,7 @@ Buffer :: struct
     
     lines : []string;
 }
-computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u32)
+computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string)
 {
     bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
     fg : Vector4 = brighten(bg, 0.25);
@@ -219,20 +180,11 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u32)
     cursorLocalCh = cursor - viewOriginCh;
 
     // edit
-    if input
+    if input != ""
     {
-        character_to_string :: (x: u32) -> string {
-            s: string;
-            s.count = 1;
-            s.data = alloc(1);
-            s[0] = cast(u8)x;
-
-            return s;
-        }
         pre := slice(<<line, 0, cursor.x);
-        mid : string = character_to_string(input);
         post := slice(<<line, cursor.x, line.count);
-        <<line = join(pre, mid, post);
+        <<line = join(pre, input, post);
         cursor.x+=1;
     }
 
@@ -279,6 +231,55 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u32)
     }
     Simp.draw_text(font, origin.x , origin.y + 2, modeString, bg);
     Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
+}
+
+processInput :: (events: [..]Input.Event)
+{
+    for event : events
+    {
+        if event.type == .QUIT
+            exit(0);
+        getrect_handle_event(event);
+
+        if mode == 
+        {
+            case ItorMode.NORMAL;
+                processInputNormal(event);
+            case ItorMode.INSERT;
+                processInputInsert(event);
+        }
+    }
+    mode = newMode;
+}
+processInputNormal :: (event : Input.Event)
+{
+    kc := event.key_code;
+    if event.type != .KEYBOARD || !event.key_pressed
+        return;
+    if kc == 
+    {
+        case #char "K";
+            dCursor.y = -1;
+        case #char "J";
+            dCursor.y = 1;
+        case #char "H";
+            dCursor.x = -1;
+        case #char "L";
+            dCursor.x = 1;
+        case #char "I";
+            newMode = ItorMode.INSERT;
+    }
+}
+processInputInsert :: (event : Input.Event)
+{
+    if event.type == 
+    {
+        case .KEYBOARD;
+            if event.key_pressed && event.key_code == .ESCAPE
+               newMode = ItorMode.NORMAL;
+        case .TEXT_INPUT;
+            input = character_utf32_to_utf8(event.utf32);
+    }
 }
 
 Vector2i :: struct
