@@ -190,7 +190,17 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
         {
             pre := slice(<<line, 0, cursor.x);
             post := slice(<<line, cursor.x, line.count);
-            if input == "\n" //handle newline
+            if input == "\\8" // handle backspace
+            {
+                if cursor.x > 0
+                {
+                    pre.count -= 1;
+                    <<line = join(pre, post);
+                    cursor.x -= 1;
+                    cursorWannaBeX -= 1;
+                }
+            }
+            else if input == "\n" //handle newline
             {
                 <<line = pre;
                 array_insert_at(cast(*[..]string)*lines, post, cursor.y+1);
@@ -303,6 +313,8 @@ processInputInsert :: (event : Input.Event)
                     newMode = ItorMode.NORMAL;
                 case .ENTER;
                     input = "\n";
+                case .BACKSPACE;
+                    input = "\\8";
             }
         }
         case .TEXT_INPUT;
