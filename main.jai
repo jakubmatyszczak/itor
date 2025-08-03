@@ -45,6 +45,7 @@ main :: ()
         drawFrame();
 
         input = "";
+        inputSpecial = false;
         dCursor = .{};
 
         dt := cast(float)(current_time - last_time);
@@ -78,6 +79,7 @@ screenOrigin : Vector2i = .{0, 0};
 experiment := false;
 b1 : Buffer;
 input : string;
+inputSpecial : bool = false;
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
 {
@@ -180,7 +182,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     // edit
     if input != ""
     {
-        if line.count == 0 then
+        if line.count == 0 && !inputSpecial 
         {
             <<line = input;
             cursor.x = 1;
@@ -190,7 +192,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
         {
             pre := slice(<<line, 0, cursor.x);
             post := slice(<<line, cursor.x, line.count);
-            if input == "\\8" // handle backspace
+            if input == "\\08" // handle backspace
             {
                 if cursor.x > 0
                 {
@@ -198,6 +200,33 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
                     <<line = join(pre, post);
                     cursor.x -= 1;
                     cursorWannaBeX -= 1;
+                }
+                else if line.count == 0
+                    array_ordered_remove_by_index(*lines, cursor.y);
+                else if cursor.y > 0
+                {
+                    cursor.x = lines[cursor.y-1].count;
+                    cursorWannaBeX = cursor.x;
+                    lines[cursor.y-1] = join(lines[cursor.y-1], <<line);
+                    array_ordered_remove_by_index(*lines, cursor.y);
+                    cursor.y -= 1;
+                }
+                    
+            }
+            else if input == "\\7F" // handle delete
+            {
+                if post.count > 0
+                {
+                    post = slice(post, 1, post.count);
+                    <<line = join(pre, post);
+                }
+                else if line.count == 0
+                    array_ordered_remove_by_index(*lines, cursor.y);
+                else if cursor.y < lines.count 
+                {
+                    <<line = join(<<line, lines[cursor.y+1]);
+                    array_ordered_remove_by_index(*lines, cursor.y+1);
+                    cursorWannaBeX = cursor.x;
                 }
             }
             else if input == "\n" //handle newline
@@ -313,12 +342,18 @@ processInputInsert :: (event : Input.Event)
                     newMode = ItorMode.NORMAL;
                 case .ENTER;
                     input = "\n";
+                    inputSpecial = true;
                 case .BACKSPACE;
-                    input = "\\8";
+                    input = "\\08";
+                    inputSpecial = true;
+                case .DELETE;
+                    input = "\\7F";
+                    inputSpecial = true;
             }
         }
         case .TEXT_INPUT;
             input = character_utf32_to_utf8(event.utf32);
+            inputSpecial = false;
     }
 }
 
