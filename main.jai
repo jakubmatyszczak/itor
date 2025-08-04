@@ -20,19 +20,19 @@ ItorMode :: enum
 mode := ItorMode.NORMAL;
 newMode := ItorMode.NORMAL;
 
+renderTargetBg : *Simp.Texture;
+renderTargetText : *Simp.Texture;
+// targetOverlay : *Simp.Texture; // text coloring??
+
 main :: ()
 {
     window = create_window(800, 600, "itor");
     Simp.set_render_target(window);
+    renderTargetBg = Simp.texture_create_render_target(800, 600, .RGBA8);
+    renderTargetText = Simp.texture_create_render_target(800, 600, .RGBA8);
 
     fontInit();
     ui_init();
-    array_add(*lines, sprint("Sraka od dupaka"));
-    array_add(*lines, sprint("Sraka od dupaka"));
-    array_add(*lines, sprint("Sraka od dupaka dluga linia, Sraka od dupaka dluga linia, Sraka od dupaka dluga linia"));
-    array_add(*lines, sprint("Sraka od dupaka"));
-    array_add(*lines, sprint("Sraka od dupaka"));
-    array_add(*lines, sprint("Sraka od dupaka dluga linia"));
     for 0..25
         array_add(*lines, sprint("Sraka od dupaka %", it));
 
@@ -51,8 +51,8 @@ main :: ()
         dt := cast(float)(current_time - last_time);
         last_time = current_time;
 
-        Input.update_window_events();
 
+        Input.update_window_events();
         for Input.get_window_resizes()
         {
             Simp.update_window(it.window);
@@ -60,13 +60,6 @@ main :: ()
             b1.size.y = it.height - b1.origin.y;
         }
         processInput(Input.events_this_frame);
-                    
-                // case .MOUSE_WHEEL;
-
-              // case .DRAG_AND_DROP_FILES;
-              //   for dropped_files free(it);
-              //   array_reset(*dropped_files);
-              //   for event.files array_add(*dropped_files, copy_string(it));
     }
 }
 
@@ -100,8 +93,12 @@ drawFrame :: ()
     button_theme.font = font;
     button_theme.enable_variable_frame_thickness = true;
 
-    bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
-    Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
+    Simp.set_render_target(window);
+    Simp.set_shader_for_images(renderTargetBg, );
+    Simp.immediate_quad(0, 0, 800, 600, .{1, 1, 1, 1,});
+    Simp.set_shader_for_images(renderTargetText, );
+    Simp.immediate_quad(0, 0, 800, 600, .{1, 1, 1, 1});
+
 
     computeBufferView(*b1, dCursor, input);
 
@@ -247,28 +244,31 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     }
 
     // draw text
+    Simp.set_render_target(renderTargetText);
+    Simp.clear_render_target(0., 0., 0., 0.);
     for lines
     {
-        if it_index < viewOriginCh.y || it_index > viewOriginCh.y + viewSizeCh.y
+        if it_index < viewOriginCh.y || it_index >= viewOriginCh.y + viewSizeCh.y
             continue;
         lineYCh := it_index - viewOriginCh.y;
         lineOrigin := textOrigin - .{0, lineYCh * charSize.y};
         trimmed := slice(it, viewOriginCh.x, viewSizeCh.x);
         Simp.draw_text(font, lineOrigin.x, lineOrigin.y, trimmed, fg); // should use slice and only write part of string that is in view
-    }
-
-    // draw line numbers
-    Simp.set_shader_for_color(true);
-    draw_rect(origin, .{lineNumberWidthPx, size.y}, fg);
-    for lines
-    {
-        lineOrigin := textOrigin - .{lineNumberWidthPx, it_index * charSize.y} ;
+        
+        lineOrigin.x = textOrigin.x - lineNumberWidthPx;
         lineNumber : string = sprint("%", formatInt(it_index, minimum_digits=lineNumberWidthCh, padding=#char" "));
         Simp.draw_text(font, lineOrigin.x, lineOrigin.y, lineNumber, bg);
     }
 
-    // draw cursor
+    // draw background
+    Simp.set_render_target(renderTargetBg);
+    Simp.clear_render_target(bg.x, bg.y, bg.z, 1.);
     Simp.set_shader_for_color(true);
+    draw_rect(origin, .{lineNumberWidthPx, size.y}, fg);
+
+    // draw line numbers
+
+    // draw cursor
     cursorClr := fg * .{1, 1, 1, 0.2};
     offset := -charSize / 10; 
     draw_rect(textOrigin + offset + cursorLocalCh * .{charSize.x, -charSize.y}, charSize, cursorClr);
@@ -277,7 +277,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     draw_rect(textOrigin + offset + .{0, cursorLocalCh.y * -charSize.y}, .{size.x - lineNumberWidthPx, charSize.y}, cursorClr);
 
     // draw bar
-    draw_rect(origin, .{size.x, charSize.y}, fg);
+    draw_rect(origin, .{size.x, charSize.y - 2}, fg);
     coordsString := tprint("C: % | R: %", cursor.x, cursor.y);
     modeString : string;
     if mode == 
