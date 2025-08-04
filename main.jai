@@ -16,9 +16,11 @@ ItorMode :: enum
 {
     NORMAL;
     INSERT;
+    COMMAND;
 }
 mode := ItorMode.NORMAL;
 newMode := ItorMode.NORMAL;
+command : string;
 
 renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
@@ -105,7 +107,6 @@ drawFrame :: ()
     Simp.set_shader_for_images(renderTargetText);
     Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
 
-
     computeBufferView(*b1, dCursor, input);
 
     Simp.swap_buffers(window);
@@ -183,7 +184,17 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     cursorLocalCh = cursor - viewOriginCh;
 
     // edit
-    if input != ""
+    if input != "" && mode == .COMMAND
+    {
+        if input == "\\08" // handle backspace
+            command = slice(command, 0, command.count - 1);
+        else if input == "\n" //handle newline
+            print("%", command); 
+            //do command();
+        else
+            command = join(command, input);
+    }
+    if input != "" && mode == .INSERT
     {
         if line.count == 0 && !inputSpecial 
         {
@@ -292,8 +303,12 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
             modeString = "NORMAL";
         case ItorMode.INSERT;
             modeString = "INSERT";
+        case ItorMode.COMMAND;
+            modeString = join("COMMAND:", command);
+            commandCursorOrigin := Vector2i.{origin.x + Simp.prepare_text(font, modeString), origin.y + 2};
+            draw_rect(commandCursorOrigin, charSize - .{0, 6}, bg);
     }
-    Simp.draw_text(font, origin.x , origin.y + 2, modeString, bg);
+    Simp.draw_text(font, origin.x , origin.y + 4, modeString, bg);
     Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
 }
 
@@ -305,12 +320,14 @@ processInput :: (events: [..]Input.Event)
             exit(0);
         getrect_handle_event(event);
 
-        if mode == 
+        if #complete mode ==
         {
             case ItorMode.NORMAL;
                 processInputNormal(event);
             case ItorMode.INSERT;
                 processInputInsert(event);
+            case ItorMode.COMMAND;
+                processInputCommand(event);
         }
     }
     mode = newMode;
@@ -336,6 +353,8 @@ processInputNormal :: (event : Input.Event)
             dCursor.x = 1;
         case #char "I";
             newMode = ItorMode.INSERT;
+        case #char ":";
+            newMode = ItorMode.COMMAND;
         case .PAGE_UP;
             dCursor.y = -10;
         case .PAGE_DOWN;
@@ -375,6 +394,35 @@ processInputInsert :: (event : Input.Event)
                     dCursor.y = -10;
                 case .PAGE_DOWN;
                     dCursor.y = +10;
+            }
+        }
+        case .TEXT_INPUT;
+            input = character_utf32_to_utf8(event.utf32);
+            inputSpecial = false;
+    }
+}
+processInputCommand :: (event : Input.Event)
+{
+    if event.type == 
+    {
+        case .KEYBOARD;
+        {
+            if !event.key_pressed
+                return;
+            if event.key_code == 
+            {
+                case .ESCAPE;
+                    newMode = ItorMode.NORMAL;
+                    command = "";
+                case .ENTER;
+                    input = "\n";
+                    inputSpecial = true;
+                case .BACKSPACE;
+                    input = "\\08";
+                    inputSpecial = true;
+                case .DELETE;
+                    input = "\\7F";
+                    inputSpecial = true;
             }
         }
         case .TEXT_INPUT;
