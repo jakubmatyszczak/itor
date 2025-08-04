@@ -7,6 +7,9 @@
 #import "Unicode";
 Simp :: #import "Simp";
 Input :: #import "Input";
+File :: #import "File";
+
+#load "commands.jai";
 
 window: Window_Type;
 
@@ -26,8 +29,25 @@ renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
 // targetOverlay : *Simp.Texture; // text coloring??
 
+readLine :: (file : *File) -> bool, string
+{
+}
+
 main :: ()
 {
+    args := get_command_line_arguments();
+    for arg : args 
+    {
+        if it_index == 0  continue;
+        
+        path := join(#filepath, "arg");
+        file, opened := File.file_open(path);
+        if !opened
+            return 1;
+        defer(File.file_close(file));
+                
+    }
+
     window = create_window(800, 600, "itor");
     Simp.set_render_target(window);
     renderTargetBg = Simp.texture_create_render_target(800, 600, .RGBA8);
@@ -42,6 +62,7 @@ main :: ()
     quit := false;
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
     b1 = .{ origin = .{0, 0}, size = .{400, 400}, charSize = charSize, lines = lines};
+    b1.path
     while !quit 
     {
         drawFrame();
@@ -140,6 +161,7 @@ Buffer :: struct
     cursor : Vector2i;
     cursorWannaBeX : s64;
     
+    path : string;
     lines : []string;
 }
 computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string)
@@ -189,8 +211,10 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
         if input == "\\08" // handle backspace
             command = slice(command, 0, command.count - 1);
         else if input == "\n" //handle newline
-            print("%", command); 
-            //do command();
+        {
+            success, msg := parseCommand(buffer, command);
+            print("% %\n", success, msg);
+        }
         else
             command = join(command, input);
     }

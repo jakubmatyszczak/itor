@@ -38,7 +38,7 @@
 
     compiler_begin_intercept(w);
     
-    add_build_file("main.jai", w);
+    add_build_file("src/main.jai", w);
     success := true;
     while true 
     {
@@ -57,7 +57,7 @@
     if !success
         return;
     run_command("cp", "-r", "res", "build/", working_directory=#filepath);
-    run_command("build/itor", join(#filepath, "build"));
+    run_command("build/itor", "test.txt", join(#filepath, "build"));
 }
 
 
