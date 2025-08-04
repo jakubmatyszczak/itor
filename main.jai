@@ -55,11 +55,17 @@ main :: ()
         Input.update_window_events();
         for Input.get_window_resizes()
         {
+            free(renderTargetBg);
+            free(renderTargetText);
+            renderTargetBg = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
+            renderTargetText = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
             Simp.update_window(it.window);
             b1.size.x = it.width - b1.origin.x;
             b1.size.y = it.height - b1.origin.y;
         }
         processInput(Input.events_this_frame);
+
+        sleep_milliseconds(16);
     }
 }
 
@@ -94,10 +100,10 @@ drawFrame :: ()
     button_theme.enable_variable_frame_thickness = true;
 
     Simp.set_render_target(window);
-    Simp.set_shader_for_images(renderTargetBg, );
-    Simp.immediate_quad(0, 0, 800, 600, .{1, 1, 1, 1,});
-    Simp.set_shader_for_images(renderTargetText, );
-    Simp.immediate_quad(0, 0, 800, 600, .{1, 1, 1, 1});
+    Simp.set_shader_for_images(renderTargetBg);
+    Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
+    Simp.set_shader_for_images(renderTargetText);
+    Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
 
 
     computeBufferView(*b1, dCursor, input);
