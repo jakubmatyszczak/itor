@@ -57,7 +57,7 @@
     if !success
         return;
     run_command("cp", "-r", "res", "build/", working_directory=#filepath);
-    run_command("build/itor", "test.txt", join(#filepath, "build"));
+    run_command("./itor", "test.txt", working_directory=join(#filepath, "build/"));
 }
 
 

@@ -7,7 +7,7 @@
 #import "Unicode";
 Simp :: #import "Simp";
 Input :: #import "Input";
-File :: #import "File";
+#import "File";
 
 #load "commands.jai";
 
@@ -29,23 +29,45 @@ renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
 // targetOverlay : *Simp.Texture; // text coloring??
 
-readLine :: (file : *File) -> bool, string
+fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool, string
 {
+    fileData, success := read_entire_file(filepath);
+    defer free(fileData);
+    if !success
+        return false, join("Could not read file: ", filepath);
+    thereIsMore := true;
+    line, rest : string;
+    rest = fileData;
+    while thereIsMore
+    {
+        thereIsMore, line, rest = split_from_left(rest, #char "\n");
+        if thereIsMore
+            array_add(*buf.lines, stringToLine(line));
+        else
+        {
+            if rest.count == 0
+                array_add(*buf.lines, stringToLine(""));
+            else
+                array_add(*buf.lines, stringToLine(rest));
+        }
+    }
+    buf.path = filepath;
+    return true, join("Opened file: ", filepath);
 }
 
 main :: ()
 {
     args := get_command_line_arguments();
+    set_working_directory(#filepath);
     for arg : args 
     {
         if it_index == 0  continue;
         
-        path := join(#filepath, "arg");
-        file, opened := File.file_open(path);
-        if !opened
-            return 1;
-        defer(File.file_close(file));
-                
+        success, msg := fillBufferFromFile(*b1, arg);
+        print("mypath: %, %\n", #filepath, msg);
+        if !success
+            array_add(cast(*[..]string)*b1.lines, "");
+        break;
     }
 
     window = create_window(800, 600, "itor");
@@ -55,22 +77,20 @@ main :: ()
 
     fontInit();
     ui_init();
-    for 0..25
-        array_add(*lines, sprint("Sraka od dupaka %", it));
 
     last_time := seconds_since_init();
     quit := false;
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
-    b1 = .{ origin = .{0, 0}, size = .{400, 400}, charSize = charSize, lines = lines};
-    b1.path
+    b1.size = .{400, 400};
+    b1.charSize = charSize;
+
     while !quit 
     {
         drawFrame();
 
-        input = "";
+        input = 0;
         inputSpecial = false;
         dCursor = .{};
-
         dt := cast(float)(current_time - last_time);
         last_time = current_time;
 
@@ -94,13 +114,12 @@ main :: ()
 
 current_theme: s32 = xx Default_Themes.Default;
 my_theme: Overall_Theme;  // This gets filled out by calling the Theme_Proc for current_theme.
-lines : [..]string;
 
 dCursor : Vector2i;
 screenOrigin : Vector2i = .{0, 0};
 experiment := false;
 b1 : Buffer;
-input : string;
+input : u8;
 inputSpecial : bool = false;
 
 draw_rect :: (pos : Vector2i, size : Vector2i, color : Vector4)
@@ -149,6 +168,65 @@ fontInit :: ()
     font = Simp.get_font_at_size("./res", "FiraCode-Regular.ttf", pixel_height);
     assert(font != null);
 }
+lineToString :: (line : *Line) -> string
+{
+    str : string;
+    str.count = line.count;
+    str.data = line.data.data;
+    return str;
+}
+stringToLine :: (str : string) -> Line
+{
+    line : Line;
+    line.count = str.count;
+    memcpy(line.data.data, str.data, str.count);
+    return line;
+}
+line_slice :: (line : *Line, index : s64) -> Line
+{
+    newLine := Line.{count = line.count - index};
+    memcpy(newLine.data.data, *line.data.data[index], line.count - index);
+    return newLine;
+}
+line_replaceWithString :: (line : *Line, str : string)
+{
+    assert(str.count <= Line.maxLen);
+    line.count = str.count;
+    memcpy(line.data.data, str.data, line.count);
+}
+line_insertChar :: (line : *Line, index : s64, char : u8)
+{
+    assert(index < Line.maxLen);
+    assert(line.count < Line.maxLen);
+    tmp : Line;
+    memcpy(*tmp.data.data[index], *line.data.data[index], line.count-index);
+    memcpy(*line.data.data[index+1], *tmp.data.data[index], line.count-index);
+    line.data[index] = char;
+    line.count += 1;
+}
+line_removeChar :: (line : *Line, index : s64)
+{
+    assert(index < Line.maxLen);
+    if line.count == 0
+        return;
+    memcpy(*line.data.data[index], *line.data.data[index+1], line.count-index);
+    line.count -= 1;
+}
+operator += :: (l1 : *Line, l2 : *Line)
+{
+    preLen := l1.count;
+    l1.count += l2.count;
+    if l1.count > Line.maxLen
+        l1.count = Line.maxLen;
+    memcpy(*l1.data.data[preLen], l2.data.data, l1.count - preLen);
+
+}
+Line :: struct
+{
+    maxLen :: 128;
+    count : s64;
+    data : [maxLen]u8;
+}
 Buffer :: struct
 {
     origin : Vector2i;
@@ -162,15 +240,25 @@ Buffer :: struct
     cursorWannaBeX : s64;
     
     path : string;
-    lines : []string;
+
+    lines : [..]Line;
 }
-computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string)
+to_string :: (input : *u8) -> string
+{
+    str : string;
+    str.count = 1;
+    str.data = input;
+    return str;
+}
+computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
 {
     bg : Vector4 = .{0.019, 0.207, 0.161, 1.}; 
     fg : Vector4 = brighten(bg, 0.25);
     hl : Vector4 = brighten(fg, 0.25);
 
     lineNumberWidthCh : s64 = xx log(cast(float)lines.count);
+    if lineNumberWidthCh < 3
+        lineNumberWidthCh = 3;
     lineNumberWidthPx : s64 = lineNumberWidthCh * charSize.x;
     viewSizeCh : Vector2i = size / charSize - .{lineNumberWidthCh, 1}; // padding for status bar on bottom
     textOrigin : Vector2i = origin + .{0, size.y} + .{ lineNumberWidthPx,  -charSize.y};
@@ -179,7 +267,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
         cursorWannaBeX = cursor.x;
     cursor += dCursor;
     cursor.y = clamp(cursor.y, 0, lines.count - 1);
-    line : *string  = *lines.data[cursor.y];
+    line : *Line  = *lines.data[cursor.y];
     
     if dCursor.x != 0
         cursorWannaBeX = cursor.x;
@@ -206,71 +294,66 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
     cursorLocalCh = cursor - viewOriginCh;
 
     // edit
-    if input != "" && mode == .COMMAND
+    if input != 0 && mode == .COMMAND
     {
-        if input == "\\08" // handle backspace
+        if input == 0x08 // handle backspace
             command = slice(command, 0, command.count - 1);
-        else if input == "\n" //handle newline
+        else if input == #char "\n" //handle newline
         {
             success, msg := parseCommand(buffer, command);
             print("% %\n", success, msg);
         }
         else
-            command = join(command, input);
+            command = join(command, to_string(*input));
     }
-    if input != "" && mode == .INSERT
+    if input != 0 && mode == .INSERT
     {
         if line.count == 0 && !inputSpecial 
         {
-            <<line = input;
+            line_insertChar(line, 0, input);
             cursor.x = 1;
             cursorWannaBeX = cursor.x;
         }
         else
         {
-            pre := slice(<<line, 0, cursor.x);
-            post := slice(<<line, cursor.x, line.count);
-            if input == "\\08" // handle backspace
+            if input == 0x08 // handle backspace
             {
                 if cursor.x > 0
                 {
-                    pre.count -= 1;
-                    <<line = join(pre, post);
+                    line_removeChar(line, cursor.x);
                     cursor.x -= 1;
                     cursorWannaBeX -= 1;
                 }
-                else if line.count == 0
+                else if line.count == 0 && lines.count > 0
                     array_ordered_remove_by_index(*lines, cursor.y);
                 else if cursor.y > 0
                 {
                     cursor.x = lines[cursor.y-1].count;
                     cursorWannaBeX = cursor.x;
-                    lines[cursor.y-1] = join(lines[cursor.y-1], <<line);
+                    lines[cursor.y-1] += line;
                     array_ordered_remove_by_index(*lines, cursor.y);
                     cursor.y -= 1;
                 }
                     
             }
-            else if input == "\\7F" // handle delete
+            else if input == 0x7F // handle delete
             {
-                if post.count > 0
-                {
-                    post = slice(post, 1, post.count);
-                    <<line = join(pre, post);
-                }
-                else if line.count == 0
+                if cursor.x < line.count
+                    line_removeChar(line, cursor.x);
+                if line.count == 0
                     array_ordered_remove_by_index(*lines, cursor.y);
                 else if cursor.y < lines.count 
                 {
-                    <<line = join(<<line, lines[cursor.y+1]);
-                    array_ordered_remove_by_index(*lines, cursor.y+1);
-                    cursorWannaBeX = cursor.x;
+                    // <<line = join(<<line, lines[cursor.y+1]);
+                    // array_ordered_remove_by_index(*lines, cursor.y+1);
+                    // cursorWannaBeX = cursor.x;
                 }
             }
-            else if input == "\n" //handle newline
+            else if input == #char "\n" //handle newline
             {
-                <<line = pre;
-                array_insert_at(cast(*[..]string)*lines, post, cursor.y+1);
+                array_insert_at(*lines, line_slice(line, cursor.x), cursor.y+1);
+                line.count -= (line.count - cursor.x);
+
                 line = *lines[cursor.y+1];
                 cursor.y += 1;
                 cursor.x = 0;
@@ -278,7 +361,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
             }
             else // any regular character
             {
-                <<line = join(pre, input, post);
+                line_insertChar(line, cursor.x, input);
                 cursor.x += 1;
             }
         }
@@ -293,7 +376,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: string
             continue;
         lineYCh := it_index - viewOriginCh.y;
         lineOrigin := textOrigin - .{0, lineYCh * charSize.y};
-        trimmed := slice(it, viewOriginCh.x, viewSizeCh.x);
+        trimmed := slice(lineToString(*it), viewOriginCh.x, viewSizeCh.x);
         Simp.draw_text(font, lineOrigin.x, lineOrigin.y, trimmed, fg); // should use slice and only write part of string that is in view
         
         lineOrigin.x = textOrigin.x - lineNumberWidthPx;
@@ -398,13 +481,13 @@ processInputInsert :: (event : Input.Event)
                 case .ESCAPE;
                     newMode = ItorMode.NORMAL;
                 case .ENTER;
-                    input = "\n";
+                    input = #char "\n";
                     inputSpecial = true;
                 case .BACKSPACE;
-                    input = "\\08";
+                    input = 0x08;
                     inputSpecial = true;
                 case .DELETE;
-                    input = "\\7F";
+                    input = 0x7F;
                     inputSpecial = true;
                 case .ARROW_UP;
                     dCursor.y = -1;
@@ -421,7 +504,7 @@ processInputInsert :: (event : Input.Event)
             }
         }
         case .TEXT_INPUT;
-            input = character_utf32_to_utf8(event.utf32);
+            input = character_utf32_to_utf8(event.utf32).data[0];
             inputSpecial = false;
     }
 }
@@ -439,18 +522,18 @@ processInputCommand :: (event : Input.Event)
                     newMode = ItorMode.NORMAL;
                     command = "";
                 case .ENTER;
-                    input = "\n";
+                    input = #char "\n";
                     inputSpecial = true;
                 case .BACKSPACE;
-                    input = "\\08";
+                    input = 0x08;
                     inputSpecial = true;
                 case .DELETE;
-                    input = "\\7F";
+                    input = 0x7F;
                     inputSpecial = true;
             }
         }
         case .TEXT_INPUT;
-            input = character_utf32_to_utf8(event.utf32);
+            input = character_utf32_to_utf8(event.utf32).data[0];
             inputSpecial = false;
     }
 }
@@ -505,3 +588,4 @@ clamp :: (val: s64, min: s64, max: s64) -> s64
         return max;
     return val;
 }
+
