@@ -59,12 +59,14 @@ fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool, string
 main :: ()
 {
     args := get_command_line_arguments();
+    print("cwd: %\n", get_working_directory());
+    print("exe: %\n", get_path_of_running_executable());
     for arg : args 
     {
         if it_index == 0  continue;
         filepath := arg;
         if !is_absolute_path(arg)
-            filepath = join(path_strip_filename(get_path_of_running_executable()), arg); 
+            filepath = join(get_working_directory(), "/", arg); 
         success, msg := fillBufferFromFile(*b1, filepath);
         if !success
             array_add(cast(*[..]string)*b1.lines, "");
