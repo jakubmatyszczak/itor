@@ -18,12 +18,15 @@ saveBufferToFile :: (using buffer : *Buffer) -> bool, string
 
 parseCommand :: (using buffer : *Buffer, command : string) -> bool, string
 {
+    interpretedCommand := command;
     if begins_with(command, "w ")
     {
         _, _, right := split_from_left(command, #char " ");
         buffer.path = join(get_working_directory(), "/", right);
+        print("saving will be done to: %", path);
+        interpretedCommand = "w";
     }
-    if command ==
+    if interpretedCommand ==
     {
         case "w";
             success, msg := saveBufferToFile(buffer);

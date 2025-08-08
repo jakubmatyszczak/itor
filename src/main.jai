@@ -53,7 +53,6 @@ fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool
                 array_add(*buf.lines, stringToLine(rest));
         }
     }
-    buf.path = filepath;
     return true;
 }
 
@@ -62,6 +61,7 @@ main :: ()
     args := get_command_line_arguments();
     print("cwd: %\n", get_working_directory());
     print("exe: %\n", get_path_of_running_executable());
+    shouldCreateNewBuffer := true;
     for arg : args 
     {
         if it_index == 0  continue;
@@ -70,14 +70,13 @@ main :: ()
             filepath = join(get_working_directory(), "/", arg); 
         //todo: is_directory ...
         if file_exists(filepath) && fillBufferFromFile(*b1, filepath)
-            break;
-        
-        // new file
-        array_add(cast(*[..]string)*b1.lines, "");
+            shouldCreateNewBuffer = false;
         b1.path = filepath;
         break;
     }
     print("file: %\n", b1.path);
+    if shouldCreateNewBuffer
+        array_add(cast(*[..]string)*b1.lines, "");
 
     window = create_window(800, 600, "itor");
     Simp.set_render_target(window);
