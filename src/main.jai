@@ -274,6 +274,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
     if cursorWannaBeX > cursor.x
         cursor.x = cursorWannaBeX;
     cursor.x = clamp(cursor.x, 0, line.count);
+    cursor.y = clamp(cursor.y, 0, lines.count);
 
     cursorLocalCh : Vector2i = cursor - viewOriginCh;
     // compute screen movement Y
@@ -320,7 +321,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             {
                 if cursor.x > 0
                 {
-                    line_removeChar(line, cursor.x);
+                    line_removeChar(line, cursor.x-1);
                     cursor.x -= 1;
                     cursorWannaBeX -= 1;
                 }
@@ -340,7 +341,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             {
                 if cursor.x < line.count
                     line_removeChar(line, cursor.x);
-                if line.count == 0
+                if line.count == 0 && lines.count > 0
                     array_ordered_remove_by_index(*lines, cursor.y);
                 else if cursor.y < lines.count 
                 {
@@ -352,6 +353,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             else if input == #char "\n" //handle newline
             {
                 array_insert_at(*lines, line_slice(line, cursor.x), cursor.y+1);
+                line = *lines[cursor.y]; //in case lines grows and get new mem from system
                 line.count -= (line.count - cursor.x);
 
                 line = *lines[cursor.y+1];
@@ -366,6 +368,8 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             }
         }
     }
+    if lines.count == 0
+        array_add(*lines, stringToLine(""));
 
     // draw text
     Simp.set_render_target(renderTargetText);
