@@ -24,6 +24,7 @@ ItorMode :: enum
 mode := ItorMode.NORMAL;
 newMode := ItorMode.NORMAL;
 command : string;
+commandResult : string;
 
 renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
@@ -58,13 +59,13 @@ fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool, string
 main :: ()
 {
     args := get_command_line_arguments();
-    set_working_directory(#filepath);
     for arg : args 
     {
         if it_index == 0  continue;
-        
-        success, msg := fillBufferFromFile(*b1, arg);
-        print("mypath: %, %\n", #filepath, msg);
+        filepath := arg;
+        if !is_absolute_path(arg)
+            filepath = join(path_strip_filename(get_path_of_running_executable()), arg); 
+        success, msg := fillBufferFromFile(*b1, filepath);
         if !success
             array_add(cast(*[..]string)*b1.lines, "");
         break;
@@ -301,8 +302,10 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             command = slice(command, 0, command.count - 1);
         else if input == #char "\n" //handle newline
         {
-            success, msg := parseCommand(buffer, command);
-            print("% %\n", success, msg);
+            success : bool;
+            success, commandResult = parseCommand(buffer, command);
+            command =  "";
+            newMode = .NORMAL;
         }
         else
             command = join(command, to_string(*input));
@@ -343,12 +346,6 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
                     line_removeChar(line, cursor.x);
                 if line.count == 0 && lines.count > 0
                     array_ordered_remove_by_index(*lines, cursor.y);
-                else if cursor.y < lines.count 
-                {
-                    // <<line = join(<<line, lines[cursor.y+1]);
-                    // array_ordered_remove_by_index(*lines, cursor.y+1);
-                    // cursorWannaBeX = cursor.x;
-                }
             }
             else if input == #char "\n" //handle newline
             {
@@ -411,7 +408,10 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
     if mode == 
     {
         case ItorMode.NORMAL;
-            modeString = "NORMAL";
+            modeString = commandResult;
+            if commandResult.count == 0
+                modeString = "NORMAL";
+
         case ItorMode.INSERT;
             modeString = "INSERT";
         case ItorMode.COMMAND;

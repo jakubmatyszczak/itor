@@ -12,11 +12,7 @@ parseCommand :: (using buffer : *Buffer, command : string) -> bool, string
                 return false, join("Save Failed, Count not open file: ", path);
             data : string;
             for *line : lines
-            {
-                print("%\n%\n\n", <<line, lineToString(line));
                 data = join(data, lineToString(line), "\n");
-            }
-            print("size: %, sizeData: %\n", data.count, size_of(type_of(data.data)));
             return write_entire_file(path, data), join("File:", path,  " saved.");
         case "q";
             exit(0);
