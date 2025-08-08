@@ -8,6 +8,7 @@
 Simp :: #import "Simp";
 Input :: #import "Input";
 #import "File";
+#import "File_Utilities";
 
 #load "commands.jai";
 
@@ -30,12 +31,12 @@ renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
 // targetOverlay : *Simp.Texture; // text coloring??
 
-fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool, string
+fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool 
 {
     fileData, success := read_entire_file(filepath);
     defer free(fileData);
     if !success
-        return false, join("Could not read file: ", filepath);
+        return false;
     thereIsMore := true;
     line, rest : string;
     rest = fileData;
@@ -53,7 +54,7 @@ fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool, string
         }
     }
     buf.path = filepath;
-    return true, join("Opened file: ", filepath);
+    return true;
 }
 
 main :: ()
@@ -67,11 +68,16 @@ main :: ()
         filepath := arg;
         if !is_absolute_path(arg)
             filepath = join(get_working_directory(), "/", arg); 
-        success, msg := fillBufferFromFile(*b1, filepath);
-        if !success
-            array_add(cast(*[..]string)*b1.lines, "");
+        //todo: is_directory ...
+        if file_exists(filepath) && fillBufferFromFile(*b1, filepath)
+            break;
+        
+        // new file
+        array_add(cast(*[..]string)*b1.lines, "");
+        b1.path = filepath;
         break;
     }
+    print("file: %\n", b1.path);
 
     window = create_window(800, 600, "itor");
     Simp.set_render_target(window);
@@ -86,6 +92,9 @@ main :: ()
     charSize := Vector2i.{Simp.get_character_width_in_pixels(font, cast(*u8)"M", 0), font.default_line_spacing};
     b1.size = .{400, 400};
     b1.charSize = charSize;
+
+    if b1.lines.count < 10
+        array_reserve(*b1.lines, 10);
 
     while !quit 
     {
