@@ -6,6 +6,7 @@
 #import "Math";
 #import "Unicode";
 Simp :: #import "Simp";
+#import "GL"(false, true, 4);
 Input :: #import "Input";
 #import "File";
 #import "File_Utilities";
@@ -27,9 +28,13 @@ newMode := ItorMode.NORMAL;
 command : string;
 commandResult : string;
 
+findActive : bool;
+find : string;
+findOccurances : [..]Vector2i;
+
 renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
-// targetOverlay : *Simp.Texture; // text coloring??
+renderTargetOverlay : *Simp.Texture; // text coloring??
 
 fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool 
 {
@@ -82,6 +87,7 @@ main :: ()
     Simp.set_render_target(window);
     renderTargetBg = Simp.texture_create_render_target(800, 600, .RGBA8);
     renderTargetText = Simp.texture_create_render_target(800, 600, .RGBA8);
+    renderTargetOverlay = Simp.texture_create_render_target(800, 600, .RGBA8);
 
     fontInit();
     ui_init();
@@ -113,6 +119,7 @@ main :: ()
             free(renderTargetText);
             renderTargetBg = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
             renderTargetText = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
+            renderTargetOverlay = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
             Simp.update_window(it.window);
             b1.size.x = it.width - b1.origin.x;
             b1.size.y = it.height - b1.origin.y;
@@ -152,9 +159,12 @@ drawFrame :: ()
     button_theme.font = font;
     button_theme.enable_variable_frame_thickness = true;
 
+
     Simp.set_render_target(window);
     Simp.set_shader_for_images(renderTargetBg);
     Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
+    Simp.set_shader_for_images(renderTargetOverlay);
+    Simp.immediate_quad(0, 0, xx renderTargetOverlay.width, xx renderTargetOverlay.height, .{1, 1, 1, 1,});
     Simp.set_shader_for_images(renderTargetText);
     Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
 
@@ -308,17 +318,42 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
     // edit
     if input != 0 && mode == .COMMAND
     {
-        if input == 0x08 // handle backspace
-            command = slice(command, 0, command.count - 1);
-        else if input == #char "\n" //handle newline
+        if findActive 
         {
-            success : bool;
-            success, commandResult = parseCommand(buffer, command);
-            command =  "";
-            newMode = .NORMAL;
+            if input == 0x08 // handle backspace
+                find = slice(find, 0, find.count - 1);
+            else if input == #char "\n" //handle newline
+            {
+                for *line : lines
+                {
+                    index : s64 = 0;
+                    for i : 0..10
+                    {
+                        index = find_index_from_left(lineToString(line), find, index);
+                        if index < 0
+                            break;
+                        array_add(*findOccurances, .{index, it_index});
+                    }
+                }
+                newMode = .NORMAL;
+            }
+            else
+                find = join(find, to_string(*input));
         }
         else
-            command = join(command, to_string(*input));
+        {
+            if input == 0x08 // handle backspace
+                command = slice(command, 0, command.count - 1);
+            else if input == #char "\n" //handle newline
+            {
+                success : bool;
+                success, commandResult = parseCommand(buffer, command);
+                command =  "";
+                newMode = .NORMAL;
+            }
+            else
+                command = join(command, to_string(*input));
+        }
     }
     if input != 0 && mode == .INSERT
     {
@@ -425,12 +460,29 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
         case ItorMode.INSERT;
             modeString = "INSERT";
         case ItorMode.COMMAND;
-            modeString = join("COMMAND:", command);
+            if findActive
+                modeString = join("FIND:", find);
+            else
+                modeString = join("COMMAND:", command);
             commandCursorOrigin := Vector2i.{origin.x + Simp.prepare_text(font, modeString), origin.y + 2};
             draw_rect(commandCursorOrigin, charSize - .{0, 6}, bg);
     }
     Simp.draw_text(font, origin.x , origin.y + 4, modeString, bg);
     Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
+
+    Simp.set_render_target(renderTargetOverlay);
+    Simp.clear_render_target(0., 0., 0., 0.);
+    Simp.set_shader_for_color(true);
+    if findActive && findOccurances
+    {
+        rectSize := Vector2i.{Simp.prepare_text(font, find), charSize.y} + charSize * 0.25 ;
+        offset := charSize * 0.25;
+        for place : findOccurances
+        {
+            posLocal := textOrigin + (place - viewOriginCh) * charSize * .{1, -1} - offset;
+            draw_rect(posLocal, rectSize, .{hl.x, hl.y ,hl.z, 1.} );
+        }
+    }
 }
 
 processInput :: (events: [..]Input.Event)
@@ -480,6 +532,13 @@ processInputNormal :: (event : Input.Event)
             dCursor.y = -10;
         case .PAGE_DOWN;
             dCursor.y = +10;
+        case #char "/";
+            newMode = .COMMAND;
+            findOccurances.count = 0;
+            find = "";
+            findActive = true;
+        case .ESCAPE;
+            findActive = false;
     }
 }
 processInputInsert :: (event : Input.Event)
