@@ -32,9 +32,11 @@ findActive : bool;
 find : string;
 findOccurances : [..]Vector2i;
 
+popupActive : bool;
+
 renderTargetBg : *Simp.Texture;
 renderTargetText : *Simp.Texture;
-renderTargetOverlay : *Simp.Texture; // text coloring??
+renderTargetPopup : *Simp.Texture; // text coloring??
 
 fillBufferFromFile :: (buf : *Buffer, filepath : string) -> bool 
 {
@@ -87,7 +89,7 @@ main :: ()
     Simp.set_render_target(window);
     renderTargetBg = Simp.texture_create_render_target(800, 600, .RGBA8);
     renderTargetText = Simp.texture_create_render_target(800, 600, .RGBA8);
-    renderTargetOverlay = Simp.texture_create_render_target(800, 600, .RGBA8);
+    renderTargetPopup = Simp.texture_create_render_target(800, 600, .RGBA8);
 
     fontInit();
     ui_init();
@@ -119,7 +121,7 @@ main :: ()
             free(renderTargetText);
             renderTargetBg = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
             renderTargetText = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
-            renderTargetOverlay = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
+            renderTargetPopup = Simp.texture_create_render_target(it.width, it.height, .RGBA8);
             Simp.update_window(it.window);
             b1.size.x = it.width - b1.origin.x;
             b1.size.y = it.height - b1.origin.y;
@@ -163,10 +165,10 @@ drawFrame :: ()
     Simp.set_render_target(window);
     Simp.set_shader_for_images(renderTargetBg);
     Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
-    Simp.set_shader_for_images(renderTargetOverlay);
-    Simp.immediate_quad(0, 0, xx renderTargetOverlay.width, xx renderTargetOverlay.height, .{1, 1, 1, 1,});
     Simp.set_shader_for_images(renderTargetText);
     Simp.immediate_quad(0, 0, xx renderTargetBg.width, xx renderTargetBg.height, .{1, 1, 1, 1,});
+    Simp.set_shader_for_images(renderTargetPopup);
+    Simp.immediate_quad(0, 0, xx renderTargetPopup.width, xx renderTargetPopup.height, .{1, 1, 1, 1,});
 
     computeBufferView(*b1, dCursor, input);
 
@@ -470,7 +472,7 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
     Simp.draw_text(font, origin.x , origin.y + 4, modeString, bg);
     Simp.draw_text(font, origin.x + size.x - Simp.prepare_text(font, coordsString) - 2,  origin.y + 2, coordsString, bg);
 
-    Simp.set_render_target(renderTargetOverlay);
+    Simp.set_render_target(renderTargetPopup);
     Simp.clear_render_target(0., 0., 0., 0.);
     Simp.set_shader_for_color(true);
     if findActive && findOccurances
@@ -482,6 +484,32 @@ computeBufferView :: (using buffer : *Buffer, dCursor :  Vector2i, input: u8)
             posLocal := textOrigin + (place - viewOriginCh) * charSize * .{1, -1} - offset;
             draw_rect(posLocal, rectSize, .{hl.x, hl.y ,hl.z, 1.} );
         }
+    }
+
+    popupActive = true;
+    if popupActive
+    {
+        popupSize := buffer.size * 0.9;
+        popupOrigin := buffer.origin + (buffer.size - popupSize) * 0.5;
+        draw_rect(popupOrigin, popupSize, .{1,0,0,1});
+
+        offset := charSize;
+        findText :: "Find files:";
+        Simp.draw_text(font, popupOrigin.x + offset.x, popupOrigin.y + popupSize.y - offset.y, findText, .{0, 0, 0, 1});
+
+        fileListOrigin := popupOrigin + offset * 2;
+        fileListSize := Vector2i.{popupSize.x / 2 - offset.x * 3, popupSize.y - cast(s64)(offset.y * 3.5)};
+        draw_rect(fileListOrigin, fileListSize, .{0,1,0,1});
+
+        filePreviewOrigin := fileListOrigin + .{fileListSize.x + offset.x, 0};
+        draw_rect(filePreviewOrigin, fileListSize, .{0,1,0,1});
+
+        searchBarOrigin := fileListOrigin - .{0, offset.y} * 1.5;
+        searchBarSize := Vector2i.{fileListSize.x * 2 + offset.x, cast(s64)(charSize.y * 1.1)};
+        draw_rect(searchBarOrigin, searchBarSize, .{0,0,1,1});
+        
+        searchTextName :: "MMMdupa.jai";
+        Simp.draw_text(font, searchBarOrigin.x + charSize.x, searchBarOrigin.y + xx(charSize.y * 0.25), searchTextName, .{1, 0, 0, 1});
     }
 }
 

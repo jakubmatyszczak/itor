@@ -1,9 +1,9 @@
 todo:
-- find and replace,
 - go to file,
+- advanced navigation, start/end line etc,
 - multiple buffers,
 - fast typing support (multi input per frame),
-- advanced navigation, start/end line etc,
+- find and replace,
 - copy/paste/delete
 - file explorer
 - combining commands
